@@ -142,8 +142,6 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     auto v = t.toVector4();
 
     std::array<Eigen::Vector3f, 3> vert = {v[0].head<3>(), v[1].head<3>(), v[2].head<3>()};
-
-
     
     // TODO : Find out the bounding box of current triangle.
     // iterate through the pixel and find if the current pixel is inside the triangle

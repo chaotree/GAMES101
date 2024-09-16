@@ -50,13 +50,40 @@ Eigen::Matrix4f get_model_matrix(float angle)
 Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio, float zNear, float zFar)
 {
     // TODO: Use the same projection matrix from the previous assignments
+    Eigen::Matrix4f projection;
+
+    Eigen::Matrix4f p2o;
+    p2o << zNear, 0, 0, 0,
+           0, zNear, 0, 0,
+           0, 0, zNear + zFar, -zNear * zFar,
+           0, 0, 1, 0;
+
+    float eye_angle = eye_fov / 180 * MY_PI;
+
+    float t = std::tan(eye_angle/2.0) * std::abs(zNear);
+    float r = t * aspect_ratio;
+    Eigen::Matrix4f o_scale, o_translate;;
+
+    o_scale << 1/r, 0, 0, 0,
+         0, -1/t, 0, 0, // 把 t p 换过来就能解决上下颠倒。
+         0, 0, 2/(zNear-zFar), 0,
+         0, 0, 0, 1;
+
+    o_translate << 1, 0, 0, 0,
+                   0, 1, 0, 0,
+                   0, 0, 1, -(zNear + zFar)/2,
+                   0, 0, 0, 1;
+
+    projection = o_scale * o_translate * p2o;
+
+    return projection;
 
 }
 
-Eigen::Vector3f vertex_shader(const vertex_shader_payload& payload)
-{
-    return payload.position;
-}
+// Eigen::Vector3f vertex_shader(const vertex_shader_payload& payload)
+// {
+//     return payload.position;
+// }
 
 Eigen::Vector3f normal_fragment_shader(const fragment_shader_payload& payload)
 {
@@ -309,7 +336,7 @@ int main(int argc, const char** argv)
 
     Eigen::Vector3f eye_pos = {0,0,10};
 
-    r.set_vertex_shader(vertex_shader);
+    // r.set_vertex_shader(vertex_shader);
     r.set_fragment_shader(active_shader);
 
     int key = 0;

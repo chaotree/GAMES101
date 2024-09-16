@@ -4,7 +4,7 @@
 
 #pragma once
 
-#define SSAA_COUNT 2
+// #define SSAA_COUNT 2
 
 #include <eigen3/Eigen/Eigen>
 #include <algorithm>
