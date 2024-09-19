@@ -8,6 +8,8 @@
 #include "Texture.hpp"
 #include "OBJ_Loader.h"
 
+// #define TEST
+
 Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
 {
     Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
@@ -214,8 +216,6 @@ Eigen::Vector3f phong_fragment_shader(const fragment_shader_payload& payload)
     return result_color * 255.f;
 }
 
-
-
 Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payload)
 {
     
@@ -249,6 +249,29 @@ Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payl
     // Position p = p + kn * n * h(u,v)
     // Normal n = normalize(TBN * ln)
 
+    float n_x = normal.x();
+    float n_y = normal.y();
+    float n_z = normal.z();
+    float proj = sqrt(n_x*n_x + n_z*n_z); // 法线在 XZ 平面上的投影长度。
+    Eigen::Vector3f tangent(n_x*n_y / proj, proj, n_z*n_y / proj);
+    Eigen::Vector3f bitangent = normal.cross(tangent);
+    Eigen::Matrix3f TBN;
+    TBN << tangent.x(), bitangent.x(), normal.x(),
+           tangent.y(), bitangent.y(), normal.y(),
+           tangent.z(), bitangent.z(), normal.z();
+    float u = payload.tex_coords.x();
+    float v = payload.tex_coords.y();
+    float du = kh * kn * (payload.texture->getColor(u+1.0f/800, v).norm() - payload.texture->getColor(u, v).norm());
+    float dv = kh * kn * (payload.texture->getColor(u, v+1.0f/800).norm() - payload.texture->getColor(u, v).norm());
+    Eigen::Vector3f ln(-du, -dv, 1);
+    Eigen::Vector3f n = (TBN * ln).normalized();
+
+    // 重点：根据高度图沿法线偏移 point。法线的空间应与point的空间一致。
+    point = point + kn * normal * (payload.texture->getColor(u, v)).norm();
+
+    Eigen::Vector3f amb = ka * amb_light_intensity.x();
+    Eigen::Vector3f diffuse{0,0,0};
+    Eigen::Vector3f specular{0,0,0};
 
     Eigen::Vector3f result_color = {0, 0, 0};
 
@@ -257,10 +280,25 @@ Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payl
         // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
         // components are. Then, accumulate that result on the *result_color* object.
 
+        float r2 = (light.position - point).dot(light.position - point);
+
+        Eigen::Vector3f light_dir = (light.position - point).normalized();
+        Eigen::Vector3f eye_dir = (eye_pos - point).normalized();
+        Eigen::Vector3f half = (light_dir + eye_dir) / (light_dir + eye_dir).norm();
+
+        float dotNL = n.dot(light_dir);
+        float dotNH = n.dot(half);
+
+        diffuse += kd * light.intensity.x() * std::max(0.0f,dotNL) / r2;
+
+        specular += ks * light.intensity.x() * std::powf(std::max(0.0f, dotNH), p) / r2;
 
     }
 
+    result_color = amb + diffuse + specular;
+
     return result_color * 255.f;
+    // return test;
 }
 
 
@@ -289,6 +327,8 @@ Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
 
     // TODO: Implement bump mapping here
     // Let n = normal = (x, y, z)
+    // sqrt(x*x+z*z) 是法线在 XZ 平面上的投影长度。
+    // 下面的方法以法线为向上轴构建了 TBN 正交基。
     // Vector t = (x*y/sqrt(x*x+z*z),sqrt(x*x+z*z),z*y/sqrt(x*x+z*z))
     // Vector b = n cross product t
     // Matrix TBN = [t b n]
@@ -297,11 +337,26 @@ Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
     // Vector ln = (-dU, -dV, 1)
     // Normal n = normalize(TBN * ln)
 
+    float n_x = normal.x();
+    float n_y = normal.y();
+    float n_z = normal.z();
+    float proj = sqrt(n_x*n_x + n_z*n_z); // 法线在 XZ 平面上的投影长度。
+    Eigen::Vector3f tangent(n_x*n_y / proj, proj, n_z*n_y / proj);
+    Eigen::Vector3f bitangent = normal.cross(tangent);
+    Eigen::Matrix3f TBN;
+    TBN << tangent.x(), bitangent.x(), normal.x(),
+           tangent.y(), bitangent.y(), normal.y(),
+           tangent.z(), bitangent.z(), normal.z();
+    float u = payload.tex_coords.x();
+    float v = payload.tex_coords.y();
+    float du = kh * kn * (payload.texture->getColor(u+1.0f/800, v).norm() - payload.texture->getColor(u, v).norm());
+    float dv = kh * kn * (payload.texture->getColor(u, v+1.0f/800).norm() - payload.texture->getColor(u, v).norm());
+    Eigen::Vector3f ln(-du, -dv, 1);
+    Eigen::Vector3f n = (TBN * ln).normalized();
+    Eigen::Vector3f result_color = n;
+    // result_color = normal;
 
-    Eigen::Vector3f result_color = {0, 0, 0};
-    result_color = normal;
-
-    return result_color * 255.f;
+    return result_color * 255.0f;
 }
 
 int main(int argc, const char** argv)
@@ -426,5 +481,6 @@ int main(int argc, const char** argv)
         }
 
     }
+
     return 0;
 }
